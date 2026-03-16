@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geospatial Fastighetsförvaltning — ArcGIS-plattformen</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0f1a;--bg2:#111827;--bg3:#1a2235;--bg4:#222d42;
+  --surface:#151f33;--surface2:#1c2840;
+  --blue:#0079C1;--blue-light:#3aa3e0;--blue-glow:rgba(0,121,193,.15);
+  --teal:#007A87;--teal-light:#00a5b5;
+  --orange:#d4792a;--purple:#8b5cf6;
+  --text:#e8ecf2;--text-dim:#8899b0;--text-muted:#556680;
+  --border:#253049;--border-light:#2e3d58;
+  --radius:12px;--radius-lg:20px;
+  --serif:'DM Serif Display',Georgia,serif;
+  --sans:'DM Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;line-height:1.65}
+::selection{background:var(--blue);color:#fff}
+
+/* ─── Grain overlay ─── */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-repeat:repeat;background-size:256px}
+
+/* ─── Topbar ─── */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(10,15,26,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 2.5rem;height:56px}
+.topbar-logo{font-family:var(--sans);font-weight:700;font-size:.95rem;color:var(--blue);letter-spacing:.02em;display:flex;align-items:center;gap:.6rem}
+.topbar-logo svg{height:18px;width:auto}
+.topbar-nav{display:flex;gap:1.5rem}
+.topbar-nav a{color:var(--text-dim);text-decoration:none;font-size:.8rem;font-weight:500;letter-spacing:.04em;text-transform:uppercase;transition:color .2s}
+.topbar-nav a:hover,.topbar-nav a.active{color:var(--blue-light)}
+
+/* ─── Hero ─── */
+.hero{padding:8rem 2.5rem 4rem;max-width:1100px;margin:0 auto;position:relative}
+.hero-eyebrow{font-family:var(--mono);font-size:.75rem;font-weight:500;color:var(--teal-light);letter-spacing:.15em;text-transform:uppercase;margin-bottom:1rem;
+  opacity:0;animation:fadeUp .8s .2s forwards}
+.hero h1{font-family:var(--serif);font-size:clamp(2.4rem,5.5vw,3.8rem);line-height:1.12;color:#fff;margin-bottom:1.2rem;
+  opacity:0;animation:fadeUp .8s .35s forwards}
+.hero h1 em{font-style:italic;color:var(--blue-light)}
+.hero-sub{font-size:1.1rem;color:var(--text-dim);max-width:680px;line-height:1.7;
+  opacity:0;animation:fadeUp .8s .5s forwards}
+.hero-line{width:60px;height:3px;background:linear-gradient(90deg,var(--blue),var(--teal));border-radius:2px;margin:2rem 0;
+  opacity:0;animation:fadeUp .8s .65s forwards}
+
+/* ─── Section wrapper ─── */
+.section{max-width:1100px;margin:0 auto;padding:0 2.5rem 4rem}
+.section-label{font-family:var(--mono);font-size:.7rem;font-weight:500;color:var(--teal);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.6rem}
+.section h2{font-family:var(--serif);font-size:clamp(1.6rem,3vw,2.2rem);color:#fff;margin-bottom:1rem}
+.section-desc{color:var(--text-dim);max-width:700px;margin-bottom:2.5rem;font-size:.95rem}
+
+/* ─── UC Cards grid ─── */
+.uc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem;margin-bottom:1rem}
+.uc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.8rem;cursor:pointer;
+  position:relative;overflow:hidden;transition:all .35s cubic-bezier(.25,.46,.45,.94)}
+.uc-card::before{content:'';position:absolute;inset:0;border-radius:var(--radius-lg);opacity:0;transition:opacity .35s;
+  background:linear-gradient(135deg,rgba(0,121,193,.08),rgba(0,122,135,.04))}
+.uc-card:hover{border-color:var(--blue);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,121,193,.12)}
+.uc-card:hover::before{opacity:1}
+.uc-card-num{font-family:var(--mono);font-size:.65rem;font-weight:500;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.8rem}
+.uc-card-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;
+  background:linear-gradient(135deg,var(--bg),var(--bg3))}
+.uc-card-icon svg{width:22px;height:22px}
+.uc-card h3{font-family:var(--serif);font-size:1.15rem;color:#fff;margin-bottom:.6rem;line-height:1.3}
+.uc-card p{font-size:.85rem;color:var(--text-dim);line-height:1.6}
+.uc-card-arrow{position:absolute;bottom:1.5rem;right:1.5rem;width:28px;height:28px;border-radius:50%;
+  background:var(--bg3);display:flex;align-items:center;justify-content:center;
+  transition:all .3s;opacity:.5}
+.uc-card:hover .uc-card-arrow{opacity:1;background:var(--blue);transform:translateX(2px)}
+.uc-card-arrow svg{width:14px;height:14px;color:#fff}
+
+/* ─── System diagram ─── */
+.system-note{display:flex;align-items:flex-start;gap:.8rem;padding:1rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:1.5rem}
+.system-note-icon{flex-shrink:0;width:20px;height:20px;margin-top:2px;color:var(--teal-light)}
+.system-note p{font-size:.82rem;color:var(--text-dim);line-height:1.6}
+.system-note strong{color:var(--text)}
+
+/* ─── Detail panel (slide-in) ─── */
+.detail-overlay{position:fixed;inset:0;z-index:200;pointer-events:none;opacity:0;transition:opacity .3s}
+.detail-overlay.active{pointer-events:auto;opacity:1}
+.detail-backdrop{position:absolute;inset:0;background:rgba(5,8,15,.7);backdrop-filter:blur(4px)}
+.detail-panel{position:absolute;top:0;right:0;bottom:0;width:min(780px,92vw);background:var(--bg2);border-left:1px solid var(--border);
+  transform:translateX(100%);transition:transform .4s cubic-bezier(.25,.46,.45,.94);overflow-y:auto;overflow-x:hidden}
+.detail-overlay.active .detail-panel{transform:translateX(0)}
+
+.detail-header{padding:2rem 2.5rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:5}
+.detail-close{position:absolute;top:1.5rem;right:1.5rem;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);
+  background:transparent;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.detail-close:hover{border-color:var(--blue);color:#fff;background:var(--surface)}
+.detail-eyebrow{font-family:var(--mono);font-size:.65rem;font-weight:500;letter-spacing:.15em;text-transform:uppercase;margin-bottom:.5rem}
+.detail-title{font-family:var(--serif);font-size:clamp(1.4rem,3vw,1.8rem);color:#fff;line-height:1.2;padding-right:3rem}
+
+.detail-body{padding:2rem 2.5rem 3rem}
+.detail-section{margin-bottom:2.5rem}
+.detail-section h4{font-family:var(--sans);font-size:.7rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-light);margin-bottom:.8rem;
+  display:flex;align-items:center;gap:.5rem}
+.detail-section h4::before{content:'';width:16px;height:2px;background:var(--teal);border-radius:1px}
+.detail-section p{font-size:.9rem;color:var(--text-dim);line-height:1.7;margin-bottom:.6rem}
+.detail-section p strong{color:var(--text)}
+
+/* Role pills */
+.role-list{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.role-pill{font-size:.75rem;font-weight:500;padding:.35rem .8rem;border-radius:20px;background:var(--surface2);border:1px solid var(--border);color:var(--text-dim)}
+
+/* Flow steps */
+.flow-steps{display:flex;flex-direction:column;gap:.5rem;margin-top:.5rem}
+.flow-step{display:flex;align-items:flex-start;gap:.7rem;font-size:.85rem;color:var(--text-dim);line-height:1.5}
+.flow-step-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--bg);border:1px solid var(--border-light);
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.65rem;font-weight:600;color:var(--blue-light);margin-top:1px}
+
+/* CTA to mapping */
+.mapping-cta{display:flex;align-items:center;gap:.8rem;padding:1rem 1.5rem;background:linear-gradient(135deg,rgba(0,121,193,.1),rgba(0,122,135,.06));
+  border:1px solid rgba(0,121,193,.25);border-radius:var(--radius);cursor:pointer;transition:all .3s;margin-top:1rem}
+.mapping-cta:hover{border-color:var(--blue);background:linear-gradient(135deg,rgba(0,121,193,.18),rgba(0,122,135,.1));transform:translateX(4px)}
+.mapping-cta-text{flex:1}
+.mapping-cta-text span{font-size:.65rem;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--teal-light);display:block;margin-bottom:.2rem}
+.mapping-cta-text strong{font-size:.95rem;color:#fff}
+.mapping-cta svg{width:20px;height:20px;color:var(--blue-light);flex-shrink:0}
+
+/* ─── Mapping view ─── */
+.mapping-view{display:none}
+.mapping-view.active{display:block}
+.uc-view{display:block}
+.uc-view.hidden{display:none}
+
+.mapping-back{display:inline-flex;align-items:center;gap:.5rem;font-size:.8rem;font-weight:500;color:var(--text-dim);
+  cursor:pointer;margin-bottom:1.2rem;transition:color .2s;border:none;background:none;font-family:var(--sans)}
+.mapping-back:hover{color:var(--blue-light)}
+.mapping-back svg{width:16px;height:16px}
+
+.platform-banner{padding:1.25rem 1.5rem;border-radius:var(--radius);margin-bottom:2rem;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid var(--border)}
+.platform-banner::before{content:'';position:absolute;top:-50%;right:-20%;width:200px;height:200px;
+  background:radial-gradient(circle,rgba(0,121,193,.12),transparent 70%);pointer-events:none}
+.platform-banner h3{font-family:var(--serif);font-size:1.1rem;color:#fff;margin-bottom:.4rem}
+.platform-banner p{font-size:.82rem;color:var(--text-dim);line-height:1.6}
+
+/* Capability cards */
+.cap-grid{display:flex;flex-direction:column;gap:.75rem}
+.cap-card{display:grid;grid-template-columns:auto 1fr auto;gap:1rem;align-items:start;padding:1.1rem 1.25rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);transition:border-color .2s}
+.cap-card:hover{border-color:var(--border-light)}
+.cap-badge{font-family:var(--mono);font-size:.65rem;font-weight:600;letter-spacing:.05em;padding:.3rem .6rem;border-radius:6px;
+  white-space:nowrap;margin-top:2px}
+.cap-badge.primary{background:rgba(0,121,193,.15);color:var(--blue-light);border:1px solid rgba(0,121,193,.3)}
+.cap-badge.supporting{background:rgba(0,122,135,.12);color:var(--teal-light);border:1px solid rgba(0,122,135,.25)}
+.cap-content h5{font-size:.88rem;font-weight:600;color:#fff;margin-bottom:.3rem}
+.cap-content p{font-size:.8rem;color:var(--text-dim);line-height:1.55}
+.cap-tag{font-family:var(--mono);font-size:.65rem;color:var(--text-muted);white-space:nowrap;margin-top:3px;text-align:right}
+.cap-cat{display:inline-block;font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:.2rem .5rem;border-radius:4px;margin-top:4px}
+.cap-cat-a{background:rgba(0,121,193,.1);color:var(--blue-light)}
+.cap-cat-b{background:rgba(0,122,135,.1);color:var(--teal-light)}
+.cap-cat-c{background:rgba(212,121,42,.1);color:var(--orange)}
+.cap-cat-d{background:rgba(139,92,246,.1);color:var(--purple)}
+
+/* Legend */
+.legend{display:flex;gap:1.5rem;margin-bottom:1.5rem;padding:.8rem 1rem;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border)}
+.legend-item{display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:var(--text-dim)}
+.legend-dot{width:10px;height:10px;border-radius:3px}
+.legend-dot.primary{background:rgba(0,121,193,.4);border:1px solid var(--blue)}
+.legend-dot.supporting{background:rgba(0,122,135,.3);border:1px solid var(--teal)}
+
+/* ─── Platform footer section ─── */
+.platform-section{max-width:1100px;margin:0 auto;padding:2rem 2.5rem 5rem}
+.platform-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-top:1.5rem}
+.platform-cat{background:var(--surface);padding:1.5rem}
+.platform-cat-label{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;margin-bottom:.8rem}
+.platform-cat:nth-child(1) .platform-cat-label{color:var(--blue-light)}
+.platform-cat:nth-child(2) .platform-cat-label{color:var(--teal-light)}
+.platform-cat:nth-child(3) .platform-cat-label{color:var(--orange)}
+.platform-cat:nth-child(4) .platform-cat-label{color:var(--purple)}
+.platform-cap{font-size:.78rem;color:var(--text-dim);padding:.35rem 0;border-bottom:1px solid var(--border);line-height:1.4}
+.platform-cap:last-child{border-bottom:none}
+.platform-cap strong{color:var(--text);font-weight:500}
+
+/* ─── Animations ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{opacity:0;transform:translateY(16px);transition:opacity .6s,transform .6s}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* ─── Responsive ─── */
+@media(max-width:700px){
+  .topbar{padding:0 1.2rem}
+  .hero,.section,.platform-section{padding-left:1.2rem;padding-right:1.2rem}
+  .detail-body,.detail-header{padding-left:1.5rem;padding-right:1.5rem}
+  .platform-grid{grid-template-columns:repeat(2,1fr)}
+  .cap-card{grid-template-columns:1fr;gap:.5rem}
+  .cap-tag{text-align:left}
+}
+@media(max-width:480px){
+  .platform-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-logo">
+    Esri Sverige
+  </div>
+  <nav class="topbar-nav">
+    <a href="#use-cases" class="active">Use Cases</a>
+    <a href="#platform">Plattformen</a>
+  </nav>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <p class="hero-eyebrow">ArcGIS för regional fastighetsförvaltning</p>
+  <h1>Geospatial <em>fastighetsförvaltning</em> för svenska regioner</h1>
+  <p class="hero-sub">Fyra use cases som kopplar energi, sensorer, utrustning och service till plats — och visar hur ArcGIS-plattformens förmågor tillsammans bygger sammanhållna verksamhetslösningar.</p>
+  <div class="hero-line"></div>
+</section>
+
+<!-- UC Cards -->
+<section class="section" id="use-cases">
+  <p class="section-label">Use Cases</p>
+  <h2>Fyra behov — en plattform</h2>
+  <p class="section-desc">Varje use case adresserar ett tydligt verksamhetsbehov. Tillsammans bildar de ett system där geografi är den gemensamma nämnaren.</p>
+
+  <div class="uc-grid">
+    <div class="uc-card fade-in" data-uc="uc1" onclick="openDetail('uc1')">
+      <span class="uc-card-num">UC 01</span>
+      <div class="uc-card-icon" style="background:linear-gradient(135deg,rgba(0,121,193,.15),rgba(0,121,193,.05))">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#3aa3e0" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <h3>Energiövervakning & optimering</h3>
+      <p>Gör energianvändning mätbar, spårbar och styrbar — kopplad till rätt byggnad, zon och rum.</p>
+      <div class="uc-card-arrow"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 2l5 5-5 5"/></svg></div>
+    </div>
+
+    <div class="uc-card fade-in" data-uc="uc2" onclick="openDetail('uc2')">
+      <span class="uc-card-num">UC 02</span>
+      <div class="uc-card-icon" style="background:linear-gradient(135deg,rgba(0,122,135,.15),rgba(0,122,135,.05))">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#00a5b5" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4m-9-11h4m14 0h-4m-1.5-6.5L16 5m-8 14l-2.5-1.5m13-5L16 19M5 5l2.5 1.5"/></svg>
+      </div>
+      <h3>Realtidsdata från sensorer</h3>
+      <p>Sensordata i rumslig kontext — tidig upptäckt, larm och operativ lägesbild per byggnad och zon.</p>
+      <div class="uc-card-arrow"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 2l5 5-5 5"/></svg></div>
+    </div>
+
+    <div class="uc-card fade-in" data-uc="uc3" onclick="openDetail('uc3')">
+      <span class="uc-card-num">UC 03</span>
+      <div class="uc-card-icon" style="background:linear-gradient(135deg,rgba(212,121,42,.15),rgba(212,121,42,.05))">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#d4792a" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4M6.5 10v4M17.5 10v4M10 17.5h4"/></svg>
+      </div>
+      <h3>Sammanhållen bild — objektmodell</h3>
+      <p>Gemensam plats- och objektstruktur som knyter samman fastigheter, system, dokument och historik.</p>
+      <div class="uc-card-arrow"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 2l5 5-5 5"/></svg></div>
+    </div>
+
+    <div class="uc-card fade-in" data-uc="uc4" onclick="openDetail('uc4')">
+      <span class="uc-card-num">UC 04</span>
+      <div class="uc-card-icon" style="background:linear-gradient(135deg,rgba(139,92,246,.15),rgba(139,92,246,.05))">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <h3>Effektivare service & underhåll</h3>
+      <p>Från ärende till åtgärd utan systemhopp — teknikern har allt på rätt plats.</p>
+      <div class="uc-card-arrow"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 2l5 5-5 5"/></svg></div>
+    </div>
+  </div>
+
+  <div class="system-note fade-in">
+    <svg class="system-note-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8"/><path d="M10 7v3l2 1"/></svg>
+    <p><strong>Dessa use cases bildar ett system.</strong> UC3 (objektmodellen) är den bärande strukturen. UC1 och UC2 levererar data och insikter. UC4 konsumerar allt och återför ny data. ArcGIS-plattformen binder samman dem genom geografi som gemensamt språk.</p>
+  </div>
+</section>
+
+<!-- Platform capabilities footer -->
+<section class="platform-section" id="platform">
+  <p class="section-label">Plattformen</p>
+  <h2>14 geospatiala förmågor i fyra kategorier</h2>
+  <p class="section-desc">ArcGIS-plattformen samlar alla förmågor i ett sammanhållet system. Det är inte en samling separata verktyg — det är en plattform för organisationer att bygga sina verksamhetslösningar på.</p>
+
+  <div class="platform-grid fade-in">
+    <div class="platform-cat">
+      <div class="platform-cat-label">A — Förstå</div>
+      <div class="platform-cap"><strong>F1</strong> Kartografi & visualisering</div>
+      <div class="platform-cap"><strong>F2</strong> Spatial analys & datavetenskap</div>
+      <div class="platform-cap"><strong>F3</strong> Bild- & fjärranalys</div>
+      <div class="platform-cap"><strong>F4</strong> 3D-visualisering & analys</div>
+    </div>
+    <div class="platform-cat">
+      <div class="platform-cat-label">B — Agera</div>
+      <div class="platform-cap"><strong>F5</strong> Dashboards & lägesbilder</div>
+      <div class="platform-cap"><strong>F6</strong> Mobila arbetsflöden</div>
+      <div class="platform-cap"><strong>F7</strong> Ruttning & logistik</div>
+      <div class="platform-cap"><strong>F8</strong> Geokodning & berikning</div>
+    </div>
+    <div class="platform-cat">
+      <div class="platform-cat-label">C — Övervaka</div>
+      <div class="platform-cap"><strong>F9</strong> IoT & realtidsanalys</div>
+      <div class="platform-cap"><strong>F10</strong> AI & automatiserad tolkning</div>
+      <div class="platform-cap"><strong>F11</strong> Big Data & bearbetning</div>
+    </div>
+    <div class="platform-cat">
+      <div class="platform-cat-label">D — Dela & integrera</div>
+      <div class="platform-cap"><strong>F12</strong> Portaler & datadelning</div>
+      <div class="platform-cap"><strong>F13</strong> Reality Capture</div>
+      <div class="platform-cap"><strong>F14</strong> Narrativ & storytelling</div>
+    </div>
+  </div>
+</section>
+
+<!-- Detail overlay -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-backdrop" onclick="closeDetail()"></div>
+  <div class="detail-panel">
+    <div class="detail-header">
+      <button class="detail-close" onclick="closeDetail()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+      <div class="detail-eyebrow" id="detail-eyebrow"></div>
+      <h2 class="detail-title" id="detail-title"></h2>
+    </div>
+    <div class="detail-body">
+      <!-- UC detail (default) -->
+      <div class="uc-view" id="uc-view"></div>
+      <!-- Mapping view -->
+      <div class="mapping-view" id="mapping-view"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ───
+const ucData = {
+  uc1: {
+    num: "UC 01", color: "#0079C1", catColor: "var(--blue-light)",
+    title: "Energiövervakning och energioptimering",
+    solutionTitle: "Lösning för energiövervakning och energioptimering",
+    solutionDesc: "En sammanhållen lösning som kopplar energimätdata till plats, byggnad och tekniskt system i realtid. Energimätare strömmar data via plattformens IoT-förmåga (ArcGIS Velocity) till operativa dashboards där driftledning kan se förbrukning per byggnad, plan och zon. Avancerad spatial analys identifierar avvikelser — onormala toppar, baslastökningar, drift utanför schema — och kopplar dem till exakt plats och komponent. Resultatet är ett beslutsunderlag som går direkt från upptäckt till åtgärd, med verifierad uppföljning. Lösningen ersätter inte befintliga energisystem utan kompletterar dem med den geografiska dimension som gör data handlingsbar.",
+    relevans: "Regioner står inför ökade krav på energiuppföljning — från EU:s energidirektiv och CSRD till interna miljömål och besparingskrav. Energi är det mest konkreta första spåret där nytta kan visas snabbt: det finns data, det finns tydliga kostnader, och det finns mätbara besparingar. Men en energiavvikelse som inte kopplas till en specifik plats och komponent förblir en siffra i ett kalkylblad — inte ett underlag för handling. Den geografiska dimensionen gör skillnaden mellan rapportering och åtgärd.",
+    roles: ["Driftledning", "Energiansvariga", "Teknisk förvaltning", "IT/dataförvaltning"],
+    flow: [
+      "Samla energimätningar (el, värme, kyla) som tidsserier med tydlig tidstämpling",
+      "Koppla varje mätpunkt till plats (byggnad → plan → zon/rum) och tekniskt system",
+      "Normalisera och jämför: dygn/vecka/säsong, vardag/helg, graddagar, beläggning",
+      "Upptäck avvikelser: toppar, drift utanför normalprofil, onormalt baslastbeteende",
+      "Skapa åtgärdsunderlag med tydlig plats, komponent, prioritet och ansvar",
+      "Följ upp effekt efter åtgärd — verifiera besparing, undvik återfall"
+    ],
+    scenario: "En vårdbyggnad visar avvikande nattförbrukning. Genom koppling till zoner syns att en del av byggnaden har ventilation på hög nivå utanför schema. Driftledning skapar åtgärd direkt från dashboarden, tekniker får ett platsbundet ärende i Field Maps, justerar inställning — och dashboarden visar efterföljande veckor en tydlig normalisering med verifierad besparing.",
+    capabilities: [
+      { id:"F2", name:"Spatial analys & datavetenskap", role:"primary", cat:"a", how:"Tidsserieanalys, normaliseringsprofiler, avvikelsedetektering och prognoser. Kärnan i att gå från rå energidata till handlingsbart beslutsunderlag." },
+      { id:"F5", name:"Dashboards & lägesbilder", role:"primary", cat:"b", how:"Operativ energidashboard med realtidsindikatorer, trender, larm och möjlighet att skapa åtgärder direkt." },
+      { id:"F9", name:"IoT & realtidsanalys", role:"primary", cat:"c", how:"Realtidsingest av energimätare via ArcGIS Velocity, geoevents vid avvikelser, automatiska triggers." },
+      { id:"F1", name:"Kartografi & visualisering", role:"supporting", cat:"a", how:"Tematiska energikartor per byggnad och zon med färgkodade förbrukningsmönster." },
+      { id:"F4", name:"3D-visualisering & analys", role:"supporting", cat:"a", how:"3D-vy av byggnadsvolymer med energiöverlagring per våningsplan." },
+      { id:"F8", name:"Geokodning & berikning", role:"supporting", cat:"b", how:"Geokoda mätpunkter till exakta byggnads- och zonpositioner." },
+      { id:"F11", name:"Big Data & bearbetning", role:"supporting", cat:"c", how:"Hantera storskaliga tidsserier från många mätpunkter över lång tid." },
+      { id:"F12", name:"Portaler & datadelning", role:"supporting", cat:"d", how:"Dela energiinsikter med driftledning, förvaltning och ledning via portal." }
+    ]
+  },
+  uc2: {
+    num: "UC 02", color: "#007A87", catColor: "var(--teal-light)",
+    title: "Realtidsdata från sensorer för fastighetsdrift",
+    solutionTitle: "Lösning för sensorbaserad driftövervakning",
+    solutionDesc: "En lösning som tar emot strömmande sensordata — temperatur, luftfuktighet, CO₂, ventilationsstatus — och gör den begriplig genom att placera varje mätvärde i sin geografiska kontext. ArcGIS Velocity hanterar ingest och realtidsbearbetning. Tröskelvärden och mönsterigenkänning detekterar avvikelser som automatiskt visas i en filtrerbar lägesbild per fastighet, byggnad och zon. Larm blir platsbundna ärenden som kan skickas direkt till tekniker i fält. Sensorhälsa övervakas löpande — sensorer ur funktion flaggas innan de skapar blinda fläckar. Lösningen bygger på samma platsstruktur som övriga use cases, vilket innebär att sensorinsikter direkt kan korreleras med energidata och underhållshistorik.",
+    relevans: "Regioner investerar i IoT-sensorer — temperatur, luftfuktighet, CO₂, ventilationsstatus — men den fulla nyttan realiseras först när sensordata kopplas till plats och tekniskt system. En temperaturavvikelse i »rum 304, våning 3, byggnad Norra« är en handlingsbar insikt. En temperaturavvikelse på »sensor TH-4821« är det inte. Kontexten gör datan användbar — och kontexten är geografi.",
+    roles: ["Driftcentral", "Teknisk personal", "Fastighetsförvaltning", "Beredskapsfunktion"],
+    flow: [
+      "Ingest: sensordata strömmar in (temp/fukt/CO₂) till ArcGIS Velocity",
+      "Kvalitetssäkra: validera värden, hantera bortfall, flagga sensorer ur funktion",
+      "Placera i kontext: varje sensor kopplad till rum/zon och teknisk komponent",
+      "Visualisera: realtidsvy + historik (24h/7d/30d) i Dashboard/Experience Builder",
+      "Detektera avvikelse: tröskelbaserat OCH mönsterbaserat",
+      "Skapa åtgärd: larm blir ärende med tydlig plats via Field Maps",
+      "Följ upp: återställning bekräftas via data, inte bara via text"
+    ],
+    scenario: "Ett rum i operationsnära zon får periodvis för hög luftfuktighet. ArcGIS Velocity detekterar mönstret och triggar ett larm i dashboarden. Driftledning ser direkt var problemet är, korrelerar med ventilationsdata och skapar ett platsbundet ärende. Tekniker navigerar till exakt rum, justerar styrkurva — dashboarden visar stabilisering inom 24 timmar.",
+    capabilities: [
+      { id:"F5", name:"Dashboards & lägesbilder", role:"primary", cat:"b", how:"Realtids-COP: filtrerbar lägesbild per fastighet/byggnad/zon med larm och prioritering." },
+      { id:"F9", name:"IoT & realtidsanalys", role:"primary", cat:"c", how:"Ingest av IoT-strömmar, tröskelbaserade larm, geofencing, realtidsdetektion via ArcGIS Velocity." },
+      { id:"F1", name:"Kartografi & visualisering", role:"supporting", cat:"a", how:"Kartor med sensorpositioner, statusfärgkodning och rumslig kontext." },
+      { id:"F2", name:"Spatial analys & datavetenskap", role:"supporting", cat:"a", how:"Mönsterigenkänning i sensorströmmar, korrelationsanalys mellan sensorer." },
+      { id:"F4", name:"3D-visualisering & analys", role:"supporting", cat:"a", how:"3D-inomhusvy med sensorer placerade i rätt rum och våning." },
+      { id:"F6", name:"Mobila arbetsflöden", role:"supporting", cat:"b", how:"Tekniker verifierar sensorstatus i fält via mobilapp." },
+      { id:"F8", name:"Geokodning & berikning", role:"supporting", cat:"b", how:"Automatisk koppling sensor → rum/zon/byggnad via koordinater." },
+      { id:"F10", name:"AI & automatiserad tolkning", role:"supporting", cat:"c", how:"ML-modeller för avvikelsedetektering bortom enkla tröskelvärden." },
+      { id:"F11", name:"Big Data & bearbetning", role:"supporting", cat:"c", how:"Buffra och analysera miljarder sensoravläsningar över tid." },
+      { id:"F12", name:"Portaler & datadelning", role:"supporting", cat:"d", how:"Portal för sensordata-åtkomst anpassad per roll och ansvar." }
+    ]
+  },
+  uc3: {
+    num: "UC 03", color: "#d4792a", catColor: "var(--orange)",
+    title: "Sammanhållen bild av fastigheter och teknisk utrustning",
+    solutionTitle: "Lösning för gemensam plats- och objektmodell",
+    solutionDesc: "En geografiskt förankrad objektmodell som samlar fastigheter, byggnader, utrymmen, tekniska system och komponenter i en gemensam struktur. Varje objekt har en tydlig position, relationer till andra objekt, och kopplingar till dokumentation, ritningar och historik. Portalen (ArcGIS Portal/Hub) ger alla roller — från tekniker till förvaltningsledning — tillgång till rätt information via karta och sök. 3D-modeller visualiserar byggnader med våningsplan och rum. Geokodning kopplar befintliga register till exakta positioner. Modellen är inte ett mål i sig — den är den gemensamma referensbilden som gör att energidata, sensordata, ärenden och ritningar kan kopplas till samma verklighet. Utan den förblir varje digitalt initiativ en isolerad lösning.",
+    relevans: "Utan en gemensam objektmodell med geografisk förankring blir varje nytt digitalt initiativ en separat lösning. Teknikern fortsätter hoppa mellan system. Energidata kan inte kopplas till sensordata. Underhållshistorik kan inte kopplas till komponent. Den här objektmodellen är förutsättningen för alla andra use cases — den gemensamma referensbilden. ArcGIS-plattformens styrka är att den är byggd för precis den typen av rumslig sammanknytning.",
+    roles: ["Fastighetsförvaltning", "Driftledning", "Teknisk förvaltning", "IT/arkitektur", "Projekt"],
+    flow: [
+      "Definiera objektfamiljer: byggnad, plan, rum/zon, system, komponent, mätpunkt, sensor",
+      "Skapa relationer: komponent tillhör system, system betjänar zon, sensor sitter i rum",
+      "Sätt master-identifiering: ett objekt känns igen i alla flöden och källsystem",
+      "Knyt dokumentation: ritningar, manualer, protokoll kopplas till rätt objekt",
+      "Skapa gemensam vy: användare hittar rätt sak på rätt plats via karta och sök"
+    ],
+    scenario: "Tekniker får ett ärende på en ventilationskomponent. I ArcGIS-portalen ser hen var den sitter (byggnad/plan/rum) som en 3D-vy, relaterade komponenter i samma system, senaste service, samt ritning och manual kopplad till exakt rätt objekt. Ingen manuell sökning i separata arkiv.",
+    capabilities: [
+      { id:"F4", name:"3D-visualisering & analys", role:"primary", cat:"a", how:"3D-modeller av byggnader med våningsplan, rum och tekniska system — den visuella kärnan i objektmodellen." },
+      { id:"F8", name:"Geokodning & berikning", role:"primary", cat:"b", how:"Geokoda alla tillgångar, utrustning och dokument till exakta positioner i byggnadsstrukturen." },
+      { id:"F12", name:"Portaler & datadelning", role:"primary", cat:"d", how:"Gemensam portal där alla roller hittar rätt objekt, dokument och relationer — single source of truth." },
+      { id:"F1", name:"Kartografi & visualisering", role:"supporting", cat:"a", how:"Visualisera fastighetsportfölj, byggnader och system på karta." },
+      { id:"F5", name:"Dashboards & lägesbilder", role:"supporting", cat:"b", how:"Fastighetsöversikt med nyckeltal och statusindikator per byggnad." },
+      { id:"F13", name:"Reality Capture", role:"supporting", cat:"d", how:"Skapa uppdaterade 3D-modeller av fastighetsportföljen med LiDAR/fotogrammetri." },
+      { id:"F14", name:"Narrativ & storytelling", role:"supporting", cat:"d", how:"Fastighetsberättelser och StoryMaps för ledningskommunikation." }
+    ]
+  },
+  uc4: {
+    num: "UC 04", color: "#8b5cf6", catColor: "var(--purple)",
+    title: "Effektivare service och underhåll",
+    solutionTitle: "Lösning för sammanhållet service- och underhållsflöde",
+    solutionDesc: "Ett sammankopplat arbetsflöde där geografi binder samman ärende, plats, komponent och dokumentation. Teknikern tar emot arbetsorder i Field Maps med exakt platsanknytning, navigerar till rätt byggnad, plan och rum, och har ritning, manual och historik länkad direkt från objektet. Återrapportering sker på plats med foto, status och tidsåtgång — allt kopplat till rätt objekt. Arbetsledare och driftledning följer backlog, ledtider och återkommande fel i operativa dashboards. Ruttoptimering kan läggas till för att maximera antal åtgärder per arbetsdag. Lösningen konsumerar data från alla andra use cases: larm från sensorer skapar ärenden, objektmodellen ger kontext, och energidata visar om åtgärden hade effekt.",
+    relevans: "Teknikerns vardag i många regioner: öppna arbetsorder i ett system, sök ritning i ett annat, ring kollega för att hitta rätt rum, dokumentera på papper. Varje systemhopp kostar tid, ökar felrisk och minskar datakvaliteten i historiken. Ett sammankopplat flöde — där geografi är limmet — minskar friktionen per ärende dramatiskt och höjer både kvalitet och spårbarhet. Ärendet har en plats, komponenten har en plats, ritningen har en plats, och teknikern navigerar dit.",
+    roles: ["Fälttekniker", "Arbetsledare/driftledning", "Förvaltning", "IT"],
+    flow: [
+      "Ta emot ärende med tydlig prioritet och platsanknytning i Field Maps",
+      "Lokalisera: byggnad → plan → rum/zon → exakt position/objekt",
+      "Förstå vad som gäller: rätt ritning, manual, historik — länkat från objektet",
+      "Utför åtgärd och dokumentera: status, notering, foto, tidsåtgång",
+      "Återrapportera med koppling till objekt — uppdaterar ärende + objekthistorik",
+      "Driftledning ser backlog, ledtider, återkommande fel i Dashboard"
+    ],
+    scenario: "Ett larm från sensordata (UC2) skapar automatiskt ett ärende. Teknikern öppnar ärendet i Field Maps, ser exakt rum och komponent på kartan, får rätt ritning och historik från objektmodellen (UC3), åtgärdar, och återrapporteringen uppdaterar både ärende och objektets historik. Driftledning ser direkt i dashboarden att avvikelsen är återställd via data.",
+    capabilities: [
+      { id:"F5", name:"Dashboards & lägesbilder", role:"primary", cat:"b", how:"Arbetsledardashboard med ärendestatus, ledtider, prioriteringar och backlog i kartvy." },
+      { id:"F6", name:"Mobila arbetsflöden", role:"primary", cat:"b", how:"Mobil arbetsorder i Field Maps: tekniker navigerar till plats, ser ritning, dokumenterar och återrapporterar." },
+      { id:"F1", name:"Kartografi & visualisering", role:"supporting", cat:"a", how:"Kartor med aktiva ärenden, backlog och historik per geografiskt område." },
+      { id:"F4", name:"3D-visualisering & analys", role:"supporting", cat:"a", how:"3D-navigering till rätt våning, rum och komponent för precis lokalisering." },
+      { id:"F7", name:"Ruttning & logistik", role:"supporting", cat:"b", how:"Optimerad ruttning mellan ärenden — fler åtgärder per arbetsdag." },
+      { id:"F8", name:"Geokodning & berikning", role:"supporting", cat:"b", how:"Automatisk platsanknytning av ärenden till byggnad/rum/komponent." },
+      { id:"F12", name:"Portaler & datadelning", role:"supporting", cat:"d", how:"Dokumentportal: ritningar, manualer, historik tillgängliga via länk från ärendet." }
+    ]
+  }
+};
+
+// ─── RENDERING ───
+function openDetail(ucId) {
+  const uc = ucData[ucId];
+  const overlay = document.getElementById('detail-overlay');
+  const eyebrow = document.getElementById('detail-eyebrow');
+  const title = document.getElementById('detail-title');
+  const ucView = document.getElementById('uc-view');
+  const mapView = document.getElementById('mapping-view');
+
+  eyebrow.textContent = uc.num;
+  eyebrow.style.color = uc.catColor;
+  title.textContent = uc.title;
+
+  // Show UC view, hide mapping
+  ucView.classList.remove('hidden');
+  mapView.classList.remove('active');
+
+  ucView.innerHTML = `
+    <div class="detail-section">
+      <h4>Varför behöver regionen detta?</h4>
+      <p>${uc.relevans}</p>
+    </div>
+    <div class="detail-section">
+      <h4>Primära roller</h4>
+      <div class="role-list">${uc.roles.map(r => `<span class="role-pill">${r}</span>`).join('')}</div>
+    </div>
+    <div class="detail-section">
+      <h4>Kärnflöde</h4>
+      <div class="flow-steps">${uc.flow.map((s,i) => `<div class="flow-step"><span class="flow-step-num">${i+1}</span><span>${s}</span></div>`).join('')}</div>
+    </div>
+    <div class="detail-section">
+      <h4>Scenario</h4>
+      <p><em>${uc.scenario}</em></p>
+    </div>
+    <div class="mapping-cta" onclick="showMapping('${ucId}')">
+      <div class="mapping-cta-text">
+        <span>Nästa steg</span>
+        <strong>Kartläggning mot förmågor i ArcGIS →</strong>
+      </div>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 4l6 6-6 6"/></svg>
+    </div>
+  `;
+
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function showMapping(ucId) {
+  const uc = ucData[ucId];
+  const ucView = document.getElementById('uc-view');
+  const mapView = document.getElementById('mapping-view');
+
+  ucView.classList.add('hidden');
+  mapView.classList.add('active');
+
+  const primary = uc.capabilities.filter(c => c.role === 'primary');
+  const supporting = uc.capabilities.filter(c => c.role === 'supporting');
+
+  mapView.innerHTML = `
+    <button class="mapping-back" onclick="backToUc('${ucId}')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 3L5 8l5 5"/></svg>
+      Tillbaka till use case
+    </button>
+
+    <div class="platform-banner">
+      <h3>${uc.solutionTitle}</h3>
+      <p>${uc.solutionDesc}</p>
+    </div>
+
+    <div style="margin-bottom:1.5rem">
+      <p style="font-size:.7rem;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.6rem">Förmågor som ingår i lösningen</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot primary"></div> Primär förmåga — kärnfunktion</div>
+        <div class="legend-item"><div class="legend-dot supporting"></div> Stödjande förmåga — förstärker värdet</div>
+      </div>
+    </div>
+
+    ${primary.length ? `<div style="margin-bottom:1.5rem"><p style="font-size:.7rem;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--blue-light);margin-bottom:.6rem">Primära förmågor — kärnfunktionen</p><div class="cap-grid">${primary.map(c => capCard(c)).join('')}</div></div>` : ''}
+    ${supporting.length ? `<div><p style="font-size:.7rem;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--teal-light);margin-bottom:.6rem">Stödjande förmågor — förstärker värdet</p><div class="cap-grid">${supporting.map(c => capCard(c)).join('')}</div></div>` : ''}
+  `;
+
+  // Scroll panel to top
+  document.querySelector('.detail-panel').scrollTop = 0;
+}
+
+function capCard(c) {
+  return `<div class="cap-card">
+    <div>
+      <span class="cap-badge ${c.role}">${c.role === 'primary' ? 'PRIMÄR' : 'STÖD'}</span>
+    </div>
+    <div class="cap-content">
+      <h5>${c.id}: ${c.name}</h5>
+      <p>${c.how}</p>
+    </div>
+    <div class="cap-tag">
+      <span class="cap-cat cap-cat-${c.cat}">${{a:'Förstå',b:'Agera',c:'Övervaka',d:'Dela'}[c.cat]}</span>
+    </div>
+  </div>`;
+}
+
+function backToUc(ucId) {
+  const ucView = document.getElementById('uc-view');
+  const mapView = document.getElementById('mapping-view');
+  ucView.classList.remove('hidden');
+  mapView.classList.remove('active');
+  document.querySelector('.detail-panel').scrollTop = 0;
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// Close on Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+// ─── Scroll animations ───
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
